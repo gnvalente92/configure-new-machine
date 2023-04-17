@@ -3,13 +3,13 @@
 ## `homebrew`
 
 ```bash
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ## `iTerm2`
 
 ```bash
-brew cask install iterm2
+brew install --cask iterm2
 ```
 
 After installing `iTerm2`, follow the in
@@ -22,12 +22,12 @@ mkdir Applications
 
 ## `Brave`
 ```bash
-brew cask install brave-browser
+brew install --cask brave-browser
 ```
 
 
 ## `docker` using `homebrew`
-Manually install using the following tutorial: [Medium Link to install docker](https://medium.com/@yutafujii_59175/a-complete-one-by-one-guide-to-install-docker-on-your-mac-os-using-homebrew-e818eb4cfc3)
+Manually install from Internet: [Link to install docker](https://docs.docker.com/desktop/install/mac-install/)
 
 ## `Dropbox`
 Manually install from Internet: [Dropbox installation link](https://www.dropbox.com/install)
@@ -37,7 +37,7 @@ Manually install from Internet: [Google Chrome Installation](https://www.google.
 
 ## `Intellij Ultimate`
 ```bash
-brew cask install intellij-idea
+brew install --cask intellij-idea
 ```
 
 ## `Jolt of Caffeine`
@@ -45,7 +45,7 @@ Mac App Store manual installation
 
 ## `karabiner-elements`
 ```bash
-brew cask install karabiner-elements
+brew install --cask karabiner-elements
 ```
 ### Configuration
 ![alt text](https://raw.githubusercontent.com/gnvalente92/configure-new-machine/master/macOS/resources/karabinerconfig.png)
@@ -58,7 +58,7 @@ Mac App Store manual installation
 
 ## `PyCharm CE`
 ```bash
-brew cask install pycharm-ce
+brew install --cask pycharm-ce
 ```
 
 ## Install `python` the correct way
@@ -66,13 +66,13 @@ brew cask install pycharm-ce
 
 ## Instal `Rambox`
 ```bash
-brew cask install rambox
+brew install --cask rambox
 ```
 
 ## `Scala` (`sbt`)  (with `jdk`)
 ```sh
 brew tap AdoptOpenJDK/openjdk
-brew cask install adoptopenjdk8
+brew install --cask adoptopenjdk8
 brew install sbt
 ```
 
@@ -81,18 +81,17 @@ Manually install from Internet: [Spectacle installation link](https://www.specta
 
 ## `Spotify`
 ```bash
-brew cask install spotify
+brew install --cask spotify
 ```
 
 ## `Vagrant`
-Install using `homebrew` by following: [`Vagrant installation procedure`](https://sourabhbajaj.com/mac-setup/Vagrant/README.html)
+Install virtualbox directly from the [`website`](https://www.virtualbox.org/wiki/Downloads) (intel and arm architectures supported) and then proceed installing using `homebrew`:
 ```bash
-brew cask install virtualbox
-brew cask install vagrant
-brew cask install vagrant-manager
+brew install --cask vagrant
+brew install --cask vagrant-manager
 ```
 
 ## `Visual Studio Code`
 ```bash
-brew cask install visual-studio-code
+brew install --cask visual-studio-code
 ```
