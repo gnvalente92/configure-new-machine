@@ -9,10 +9,10 @@
 ## `iTerm2`
 
 ```bash
-brew install --cask iterm2
+./macOS/bash-scripts/setup-iterm.sh
 ```
 
-After installing `iTerm2`, follow the in
+See the [`terminal` setup guide](terminal/README.md) before running the script.
 
 ## Create sandboxed Applications directory
 ```bash

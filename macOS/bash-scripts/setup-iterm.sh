@@ -3,8 +3,20 @@
 set -Eeuo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly COLOR_PRESET="${SCRIPT_DIR}/../terminal/iterm-color-schema.itermcolors"
+readonly SNAPSHOT_DIR="${SCRIPT_DIR}/../terminal/snapshot"
+readonly ITERM_SNAPSHOT="${SNAPSHOT_DIR}/com.googlecode.iterm2.plist"
+readonly ZSHRC_SNAPSHOT="${SNAPSHOT_DIR}/zshrc"
+readonly P10K_SNAPSHOT="${SNAPSHOT_DIR}/p10k.zsh"
+readonly FONT_SNAPSHOT_DIR="${SNAPSHOT_DIR}/fonts"
 readonly ZSHRC="${HOME}/.zshrc"
+readonly P10KRC="${HOME}/.p10k.zsh"
+readonly ITERM_PLIST="${HOME}/Library/Preferences/com.googlecode.iterm2.plist"
+readonly BACKUP_DIR="${HOME}/.configure-new-machine-backups/iterm-$(date +%Y%m%d%H%M%S)"
+
+readonly OH_MY_ZSH_REVISION="df34d2b8d575777465aed8ae9b7cd90d63fdcd6e"
+readonly POWERLEVEL10K_REVISION="36f3045d69d1ba402db09d09eb12b42eebe0fa3b"
+readonly AUTOSUGGESTIONS_REVISION="85919cd1ffa7d2d5412f6d3fe437ebdbeeec4fc5"
+readonly SYNTAX_HIGHLIGHTING_REVISION="5eb677bb0fa9a3e60f0eff031dc13926e093df92"
 
 SKIP_HOMEBREW=false
 SKIP_SHELL_CONFIG=false
@@ -23,13 +35,12 @@ usage() {
   cat <<'EOF'
 Usage: setup-iterm.sh [options]
 
-Install and configure iTerm2, Meslo Nerd Font, Oh My Zsh, Powerlevel10k,
-zsh-autosuggestions, zsh-syntax-highlighting, and the bundled color preset.
+Restore the repository's captured iTerm2 and Zsh setup as closely as possible.
 
 Options:
   --skip-homebrew     Fail instead of installing Homebrew when it is missing.
-  --skip-shell-config Install iTerm2 and the font without changing ~/.zshrc.
-  --no-launch         Do not launch iTerm2 to import the color preset.
+  --skip-shell-config Restore iTerm2 without changing ~/.zshrc or ~/.p10k.zsh.
+  --no-launch         Do not launch iTerm2 after restoring the snapshot.
   -h, --help          Show this help.
 EOF
 }
@@ -48,7 +59,13 @@ for arg in "$@"; do
 done
 
 [[ "$(uname -s)" == "Darwin" ]] || die "This script only supports macOS."
-[[ -f "${COLOR_PRESET}" ]] || die "Color preset not found: ${COLOR_PRESET}"
+for snapshot_file in \
+  "${ITERM_SNAPSHOT}" \
+  "${ZSHRC_SNAPSHOT}" \
+  "${P10K_SNAPSHOT}"; do
+  [[ -f "${snapshot_file}" ]] || die "Snapshot file not found: ${snapshot_file}"
+done
+[[ -d "${FONT_SNAPSHOT_DIR}" ]] || die "Font snapshot directory not found."
 
 install_homebrew() {
   if [[ -x /opt/homebrew/bin/brew ]]; then
@@ -89,130 +106,117 @@ install_cask() {
   fi
 }
 
-sync_zsh_repository() {
+restore_zsh_repository() {
   local destination="$1"
   local repository="$2"
+  local revision="$3"
 
   if [[ -d "${destination}/.git" ]]; then
-    log "Updating $(basename "${destination}")"
-    git -C "${destination}" pull --ff-only
+    log "Restoring $(basename "${destination}") to ${revision}"
   elif [[ -e "${destination}" ]]; then
     die "${destination} exists but is not a Git repository."
   else
     log "Installing $(basename "${destination}")"
-    git clone --depth=1 "${repository}" "${destination}"
+    git clone --no-checkout "${repository}" "${destination}"
   fi
+
+  git -C "${destination}" fetch --depth=1 origin "${revision}"
+  git -C "${destination}" checkout --detach "${revision}"
 }
 
 install_oh_my_zsh() {
-  if [[ -d "${HOME}/.oh-my-zsh" ]]; then
-    log "Oh My Zsh is already installed"
-    return
-  fi
-
-  log "Installing Oh My Zsh"
-  RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c \
-    "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+  restore_zsh_repository \
+    "${HOME}/.oh-my-zsh" \
+    "https://github.com/ohmyzsh/ohmyzsh.git" \
+    "${OH_MY_ZSH_REVISION}"
 }
 
-configure_zsh() {
+backup_file() {
+  local source="$1"
+
+  if [[ -e "${source}" ]]; then
+    mkdir -p "${BACKUP_DIR}"
+    cp -R "${source}" "${BACKUP_DIR}/"
+  fi
+}
+
+restore_shell_snapshot() {
   local custom_dir="${ZSH_CUSTOM:-${HOME}/.oh-my-zsh/custom}"
-  local cleaned_file
-  local configured_file
-  local backup_file
 
-  sync_zsh_repository \
+  install_oh_my_zsh
+  restore_zsh_repository \
     "${custom_dir}/themes/powerlevel10k" \
-    "https://github.com/romkatv/powerlevel10k.git"
-  sync_zsh_repository \
+    "https://github.com/romkatv/powerlevel10k.git" \
+    "${POWERLEVEL10K_REVISION}"
+  restore_zsh_repository \
     "${custom_dir}/plugins/zsh-autosuggestions" \
-    "https://github.com/zsh-users/zsh-autosuggestions.git"
-  sync_zsh_repository \
+    "https://github.com/zsh-users/zsh-autosuggestions.git" \
+    "${AUTOSUGGESTIONS_REVISION}"
+  restore_zsh_repository \
     "${custom_dir}/plugins/zsh-syntax-highlighting" \
-    "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+    "https://github.com/zsh-users/zsh-syntax-highlighting.git" \
+    "${SYNTAX_HIGHLIGHTING_REVISION}"
 
-  touch "${ZSHRC}"
-  cleaned_file="$(mktemp)"
-  configured_file="$(mktemp)"
+  backup_file "${ZSHRC}"
+  backup_file "${P10KRC}"
+  cp "${ZSHRC_SNAPSHOT}" "${ZSHRC}"
+  cp "${P10K_SNAPSHOT}" "${P10KRC}"
+  log "Restored ${ZSHRC} and ${P10KRC}"
+}
 
-  awk '
-    /^# >>> configure-new-machine iTerm setup >>>$/ {
-      print "# configure-new-machine-iterm-placeholder"
-      managed=1
-      next
-    }
-    /^# <<< configure-new-machine iTerm setup <<<$/{ managed=0; next }
-    !managed { print }
-  ' "${ZSHRC}" > "${cleaned_file}"
+restore_font() {
+  local fonts_dir="${HOME}/Library/Fonts"
+  local font_snapshot
+  local destination
 
-  awk '
-    BEGIN { inserted=0 }
-    !inserted && ($0 == "# configure-new-machine-iterm-placeholder" ||
-      $0 ~ /^[[:space:]]*source[[:space:]].*oh-my-zsh\.sh/) {
-      print "# >>> configure-new-machine iTerm setup >>>"
-      print "export ZSH=\"$HOME/.oh-my-zsh\""
-      print "ZSH_THEME=\"powerlevel10k/powerlevel10k\""
-      print "plugins=(git kubectl zsh-autosuggestions zsh-syntax-highlighting)"
-      print "source \"$ZSH/oh-my-zsh.sh\""
-      print "[[ ! -f \"$HOME/.p10k.zsh\" ]] || source \"$HOME/.p10k.zsh\""
-      print "# <<< configure-new-machine iTerm setup <<<"
-      inserted=1
-      next
-    }
-    { print }
-    END {
-      if (!inserted) {
-        print ""
-        print "# >>> configure-new-machine iTerm setup >>>"
-        print "export ZSH=\"$HOME/.oh-my-zsh\""
-        print "ZSH_THEME=\"powerlevel10k/powerlevel10k\""
-        print "plugins=(git kubectl zsh-autosuggestions zsh-syntax-highlighting)"
-        print "source \"$ZSH/oh-my-zsh.sh\""
-        print "[[ ! -f \"$HOME/.p10k.zsh\" ]] || source \"$HOME/.p10k.zsh\""
-        print "# <<< configure-new-machine iTerm setup <<<"
-      }
-    }
-  ' "${cleaned_file}" > "${configured_file}"
+  mkdir -p "${fonts_dir}"
+  for font_snapshot in "${FONT_SNAPSHOT_DIR}"/*.ttf; do
+    destination="${fonts_dir}/$(basename "${font_snapshot}")"
+    backup_file "${destination}"
+    cp "${font_snapshot}" "${destination}"
+  done
+  log "Installed the exact captured font files"
+}
 
-  if cmp -s "${ZSHRC}" "${configured_file}"; then
-    rm -f "${cleaned_file}" "${configured_file}"
-    log "${ZSHRC} is already configured"
-    return
-  fi
+restore_iterm_preferences() {
+  local temporary_plist
 
-  if [[ -s "${ZSHRC}" ]]; then
-    backup_file="${ZSHRC}.backup.$(date +%Y%m%d%H%M%S)"
-    cp "${ZSHRC}" "${backup_file}"
-    log "Backed up existing configuration to ${backup_file}"
-  fi
+  backup_file "${ITERM_PLIST}"
+  temporary_plist="$(mktemp)"
+  cp "${ITERM_SNAPSHOT}" "${temporary_plist}"
+  plutil -replace 'New Bookmarks.0.Working Directory' -string "${HOME}" "${temporary_plist}"
+  plutil -replace 'New Bookmarks.1.Working Directory' -string "${HOME}" "${temporary_plist}"
 
-  mv "${configured_file}" "${ZSHRC}"
-  rm -f "${cleaned_file}"
-  log "Configured ${ZSHRC}"
+  osascript -e 'tell application "iTerm2" to quit' >/dev/null 2>&1 || true
+  sleep 1
+  defaults import com.googlecode.iterm2 "${temporary_plist}"
+  rm -f "${temporary_plist}"
+  log "Restored the captured iTerm2 preferences"
 }
 
 install_homebrew
 install_cask iterm2
-install_cask font-meslo-lg-nerd-font
+restore_font
 
 if [[ "${SKIP_SHELL_CONFIG}" == false ]]; then
   command -v git >/dev/null 2>&1 || brew install git
-  install_oh_my_zsh
-  configure_zsh
+  restore_shell_snapshot
 fi
 
+restore_iterm_preferences
+
 if [[ "${NO_LAUNCH}" == false ]]; then
-  log "Importing the bundled iTerm2 color preset"
-  open -a iTerm "${COLOR_PRESET}"
+  open -a iTerm
+fi
+
+if [[ "${SHELL:-}" != "/bin/zsh" ]]; then
+  log "Your login shell is ${SHELL:-unknown}; run: chsh -s /bin/zsh"
 fi
 
 cat <<'EOF'
 
 iTerm2 setup is complete.
 
-In iTerm2, open Settings > Profiles:
-  1. Text: select "MesloLGS NF" as the font.
-  2. Colors > Color Presets: select "iterm-color-schema".
-
-Open a new shell. Run `p10k configure` to customize the prompt.
+Open a new iTerm2 window. The "Solarized Dark" profile should be the default.
+Do not run `p10k configure` if you want to preserve the captured prompt.
 EOF
